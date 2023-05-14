@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <style>
+        input {
+            display: block;
+            clear: both;
+            margin: 10px 0;
+        }
+
+    </style>
+    <script type="text/javascript" src='https://cdn.jsdelivr.net/gh/ethereum/web3.js/dist/web3.min.js'></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ipfs/dist/index.min.js"></script>
+</head>
+
+<body>
+    <h2>ERC721 showcase</h2>
+
+    <label for="avatar">Name :</label>
+    <input id="demo-name" />
+
+    <label for="description">Description :</label>
+    <input id="demo-des" />
+
+    <label for="image">Choose a picture:</label>
+    <input type="file" id="demo-image" accept="image/*" />
+
+    <button onclick="onSubmit();">submit</button>
+    <div id="tokenURIs"></div>
+
+    <label for="abi">ABI :</label>
+    <div><textarea id="abi" rows="5" cols="30" ></textarea></div>
+
+    <label for="Address">Contract Address :</label>
+    <input id="Address" />
+
+    <button onclick="createNft()">create nft</button>
+
+    <div id="result"></div>
+
+    <script>
+        const basePath = 'https://ipfs.io/ipfs/'
+        var node = null
+        window.onload = async () => {
+            // ipfs 初始化
+            node = await Ipfs.create()
+        }
+
+        async function onSubmit() {
+            if (!node) {
+                alert('ipfs server is not ready！please wait seconds and try again')
+                return
+            }
+
+            // 获取填写数据
+            const name = document.getElementById('demo-name').value
+            const description = document.getElementById('demo-des').value
+            const fileContent = document.getElementById("demo-image").files[0]
+            if (!name || !description || !fileContent) {
+                alert('please input ERC721 info!')
+                return
+            }
+
+            // 上传图片至 ipfs
+            const imageResults = await node.add(fileContent)
+            const imgUrl = `${basePath}/${imageResults.path}`
+            const metadata = {
+                description,
+                name,
+                image: imgUrl,
+            }
+
+            // 上传 matedata
+            const metadataResults = await node.add(JSON.stringify(metadata))
+            // 创建元素并添加至 dom 节点中
+            const tokenURIItemDom = document.createElement('a')
+            const metadataResultsPath = `${basePath}${metadataResults.path}`
+            tokenURIItemDom.innerText = metadataResults.path
+            tokenURIItemDom.href = metadataResultsPath
+            tokenURIItemDom.target = '_blank'
+            tokenURIItemDom.id = 'url'
+            const copyButton = document.createElement('button')
+            copyButton.id = 'copy'
+            copyButton.innerText = 'copy'
+            document.getElementById('tokenURIs').innerHTML = ''
+            document.getElementById('tokenURIs').append(tokenURIItemDom, copyButton)
+            document.getElementById('copy').addEventListener("click", () => {
+                selectText('url')
+            });
+        }
+
+        function selectText(element) {
+            const text = document.getElementById(element)
+            if (document.body.createTextRange) {
+                const range = document.body.createTextRange()
+                range.moveToElementText(text)
+                range.select()
+            } else if (window.getSelection) {
+                const selection = window.getSelection()
+                const range = document.createRange()
+                range.selectNodeContents(text)
+                selection.removeAllRanges()
+                selection.addRange(range)
+                document.execCommand("Copy")
+            } else {
+                alert("none")
+            }
+        }
+
+        async function createNft(){
+                let web3Provider
+                let customweb3 = null
+                if (window.ethereum) {
+                    web3Provider = window.ethereum
+                    await window.ethereum.enable()
+                } else if (window.web3) {
+                    web3Provider = window.web3.currentProvider
+                } else {
+                    web3Provider = new Web3.providers.HttpProvider('https://www.rinkeby.io')
+                }
+                customweb3 = new Web3(web3Provider);
+                const abi = JSON.parse(document.getElementById('abi').value)
+                const address = document.getElementById('Address').value
+                const accounts =await customweb3.eth.getAccounts()
+                const url = document.getElementById('url').innerText
+                const contract = new customweb3.eth.Contract(abi,address)
+                document.getElementById('result').innerHTML = 'Pending ...'
+                const mintTo = await contract.methods.mintTo(accounts[0],url).send({from: accounts[0]}).on('transactionHash', (hash) => {
+                    console.log(hash)
+                })
+                .on('error', (error) => {
+                    console.error(error)
+                })
+
+                if(mintTo){
+                    document.getElementById('result').innerHTML = 'Successfully'
+                }else{
+                    document.getElementById('result').innerHTML = 'Failed'
+                }
+
+             }
+    </script>
+</body>
+
+</html>
+
